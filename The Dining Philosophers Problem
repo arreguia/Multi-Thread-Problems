@@ -1,0 +1,176 @@
+/*Author:Alex Arreguin
+Class: CS 444
+Date: 4/18/2016
+Discription: Concurrency 2: The Dining Philosophers Problem
+*/
+
+#include <unistd.h>
+#include <pthread.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+
+#include "mt19937ar.c"
+#define NUM_THREADS 5
+
+//Functions 
+void eat(void);
+void think(void);
+void *organize (void *ph);
+void set_table();
+
+struct people {
+  int status;
+  char *name;
+  pthread_mutex_t *fork_left, *fork_right;
+  pthread_t thread;
+    
+};
+
+//Setting up Philosophers at the table
+void set_table()
+{ 
+  
+  int i;
+  
+  //Array of philosophers at table
+  char *names[] = { "Locke", "Marx", "Laozi", "Plato", "Averroes" };
+  
+  //Creating 5 forks 5 people 
+  struct people *philosopher ;
+  pthread_mutex_t forks[NUM_THREADS];
+  struct people person[NUM_THREADS];
+  
+  //setting up the philosophers
+  for (i = 0; i < NUM_THREADS; i++) 
+    {
+      philosopher  = &person[i];
+      philosopher -> name = names[i];
+      philosopher -> fork_left = &forks[i];
+      philosopher -> fork_right = &forks[(i + 1) % NUM_THREADS];
+      philosopher -> status = pthread_create(&philosopher -> thread, NULL, organize , philosopher);
+    }
+	
+  //Checking to see if anyone starves, nobody should but if they
+  //do terminate.
+  for(i = 0; i < NUM_THREADS; i++) 
+    {
+      philosopher  = &person[i];
+      if ( !philosopher -> status && pthread_join(philosopher -> thread, NULL) ) 
+	{
+	  printf("No! %s has starved \n", philosopher -> name);
+	  exit(1);
+        }
+    }
+}
+ 
+//Generates random amount of time
+int gen_number(int high, int low) {
+
+    int number = 0;
+    number = (int)genrand_int32();
+    number = abs(number);
+    number %= (high - low);
+    if (number < low)
+    {
+        number = low;
+    }
+    return number;
+}
+
+
+//Philosopher eating time
+void eat(void){
+    
+    int waiting = 0;
+    waiting = gen_number(9, 2);
+    sleep(waiting);
+}
+
+
+//Philosopher thinking time
+void think(void){
+	
+    int waiting = 0;
+    waiting = gen_number(20, 1);
+    sleep(waiting);
+}
+
+
+/**********************************
+
+The while True:
+		think()
+		get_fork()
+		eat()
+		put_forks()
+Implemented the top loop in the following function in order 
+with think() and eat() already set since the philosophers 
+already know how. It was easiest to write get_forks() and 
+put_forks() inside the loop to avoid redundancy but still in 
+the other asked for in the loop. 
+
+************************************/
+void *organize(void *ph) 
+{
+  int other_fork;
+  int attemp = 2;
+
+  struct people *philosopher  = (struct people*)ph;
+  pthread_mutex_t *fork_left, *fork_right;
+  pthread_mutex_t *temp;
+ 
+  while (1) 
+    {
+      printf("%s starting thinking\n", philosopher -> name);
+	  
+	  //Philosopher is thinking for 1-20 seconds
+      think();
+	  
+	  //Philosopher is getting fork
+	  //get_forks()
+	  fork_left = philosopher -> fork_left;
+      fork_right = philosopher -> fork_right;
+      printf("%s got fork\n", philosopher -> name);
+	  
+	  //Checking if right or left fork 
+      while(other_fork) 
+		{
+		other_fork = pthread_mutex_lock(fork_left);
+		other_fork = (attemp > 0) ? pthread_mutex_trylock(fork_right) : pthread_mutex_lock(fork_right);
+		
+		//switch fork 
+		if (other_fork) 
+			{
+				pthread_mutex_unlock( fork_left);
+				temp = fork_left;
+				fork_left = fork_right;
+				fork_right = temp;
+				attemp -= 1;
+			}
+		}
+		
+	 //If fork is grabbed, philosopher starts eats.	
+     if (!other_fork) 
+		{
+		printf("%s is enjoying his food\n", philosopher -> name);
+	  
+		//eating takes 2-9 seconds
+		eat();
+		
+		//philosopher is putting fork down
+		//put_forks()
+		pthread_mutex_unlock(fork_right);
+		pthread_mutex_unlock(fork_left);
+		printf("%s put down fork\n", philosopher -> name);
+        }
+    }
+}
+
+
+//The beginning of the program
+int main()
+{
+  set_table();
+  return 0;
+} 

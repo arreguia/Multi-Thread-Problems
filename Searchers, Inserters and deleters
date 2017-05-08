@@ -1,0 +1,241 @@
+/****************************************
+*Author:Alex Arreguin
+*05/03/2016
+*CS 444
+*Concurrency 3
+*Description: Searchers, Inserters and Deleters manipulate a list at different times. This program is three-way categorical mutual exclusion
+*****************************************/
+
+#include <unistd.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <time.h>
+#include <signal.h>
+#include "mt19937ar.c"
+
+
+//Functions used for the program 
+void searcher();
+void inserter();
+void deleter();
+//random number generator for list
+int gen_number(int high, int low);
+//for debugging 
+void sig_catch(int sig);
+
+//threads made here to avoid passing
+pthread_mutex_t ser_lock;
+pthread_mutex_t del_lock;
+pthread_mutex_t ins_lock;
+
+//single-linked list to be accessed by threads
+struct linkL {
+	int list;
+	struct linkL *next;
+}*head;
+
+//Signals catcher
+void sig_catch(int sig){
+    kill(0,sig);
+    exit(0);
+}
+//random generator using mt19937ar.c
+int gen_number(int high, int low) {
+	
+	int num = 0;
+	
+	num = (int)genrand_int32();
+	num = abs(num);
+	num %= (high - low);
+	if (num < low)
+	{
+		num = low;
+	}
+	
+	return num;
+}
+//This function is used to keep track of position.
+int tracker(){
+	struct linkL *pos;
+	int i=0;
+	pos = head;
+	while (pos != NULL){
+		pos = pos->next;
+		i++;
+	}
+	return i;
+}
+//The searchers live here
+void searcher () {
+	
+	struct linkL *pos;
+	
+	while (1) {
+	
+	
+		if (!pthread_mutex_trylock(&ser_lock)){
+			//if(num < 2){ debugging 
+			pos = head;
+			printf("Searching...List =");
+			while (pos != NULL){
+			printf("|%d|", pos->list);
+				pos = pos->next;
+			}
+				printf("\n");
+			
+			
+			//num++;
+			pthread_mutex_unlock(&ser_lock);
+		}
+	
+		sleep(1);
+
+	}
+}
+//The inserters live here
+void inserter () {
+	struct linkL *pos;
+	struct linkL **tail;
+	int numAdd;
+	while (1){
+
+		// Keeping the list under 20
+		if (tracker() < 20){
+			
+			if (!pthread_mutex_lock(&ins_lock)){
+				
+				//allocating memory space
+				pos = (struct linkL *)malloc(sizeof(struct linkL));
+				numAdd = gen_number(10, 1);
+			
+				printf("Now Inserting number %d\n", numAdd);
+				
+				//adding new number 
+				pos->list = numAdd;
+				pos->next = NULL;
+				tail = &head;
+				/* Testing
+				while(pos->next != NULL){
+					pos = pos->next;
+				}
+				pos->next = &tail;
+				pos = pos->next;
+				pos->next = NULL;
+				*/
+				if (head == NULL){
+					head = pos;
+					} else {
+					while (*tail != NULL){
+						tail = &((*tail)->next);
+					}
+					*tail = pos;
+				}
+			
+			pthread_mutex_unlock(&ins_lock);
+			sleep(5);
+		}
+	}
+}
+}
+
+//The deleters live here
+void deleter () {
+
+int numDel;
+struct linkL *pos, *prev;
+
+	while (1){
+	// tracker needs to be greater the n 1 so it doesn't leave list empty
+		if (tracker() > 1){
+	//Checking to locks threads
+		if (!pthread_mutex_trylock(&ins_lock)){
+		if(!pthread_mutex_trylock(&ser_lock)){
+	// position being set to head of list
+			pos = head;
+	//number being deleted 
+			numDel = gen_number(10, 1);
+	//This loop will delete X number from list.
+			while (pos != NULL) {
+			if(pos->list == numDel){
+				printf("Now deleting number %d\n", numDel);
+
+				/* First try at deleting number, unsuccessful 
+				for(i = 0; i < pos; i++)
+				{
+				if(i == (pos - 2))
+				{
+				pos = numDel;
+				}
+				numDel = numDel->next;          
+				}
+
+				*/
+				if (pos == head) {
+					head = pos->next;
+					free(pos);
+					break;
+				} 
+				else {
+					prev->next = pos->next;
+					free(pos);
+					break;
+				}
+			}
+			else {
+				prev = pos;
+				pos = pos->next;
+				}
+			}
+			//next to unlock threads 
+			pthread_mutex_unlock(&ser_lock);
+			}
+		pthread_mutex_unlock(&ins_lock);
+		}
+		sleep(2);
+		}
+	}
+}
+
+
+
+
+int main(){
+	int i = 0;
+	
+	//debugging purpose
+	struct sigaction sig;
+	struct linkL *new;
+	//creating space
+	new = (struct linkL *)malloc(sizeof(struct linkL));
+	new->list = gen_number(10, 1);
+	head = new;
+	head->next = NULL;
+	
+	//used for debugging 
+	sigemptyset(&sig.sa_mask);
+    sig.sa_flags = 0;
+    sig.sa_handler = sig_catch;
+    sigaction(SIGINT, &sig, NULL);
+	
+	/* this variable is our reference to the second thread */
+	pthread_t search_thread[3];
+	pthread_t insert_thread[3];
+	pthread_t delete_thread[3];
+	
+	//Kept getting a core dump and didn't understand why, Finally figured it out 
+	//and implemented these two for loops that create multiple threads.
+	for(i = 0; i < 4; ++i){
+		pthread_create(&insert_thread[i], NULL, (void *)inserter, (void *)NULL);
+		pthread_create(&search_thread[i], NULL, (void *)searcher, (void *)NULL);
+		pthread_create(&delete_thread[i], NULL, (void *)deleter, (void *)NULL);
+		
+	}
+	for(i = 0; i < 4; ++i){
+		pthread_join(search_thread[i], NULL);
+		pthread_join(insert_thread[i], NULL);
+		pthread_join(delete_thread[i], NULL);
+	}
+	
+	return 0;
+	}	

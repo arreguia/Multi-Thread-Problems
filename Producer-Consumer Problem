@@ -1,0 +1,127 @@
+/*
+Author:Alex Arreguin
+Class: CS 444
+Date: 4/09/2016
+Discription: Implementing a solution to the producer-consumer problem.
+*/
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <unistd.h>
+#include "mt19937ar.c"
+#include <time.h>
+
+#define MAXBUFFER 32
+#define num_con_pro 1
+
+//struct because Mcgrath said so.
+struct item_buffer{
+	int num_value;
+	int wait_period;
+};
+
+struct item_buffer buffer[MAXBUFFER];
+int buffer_index = 0;
+//threads for producer and consumer
+pthread_t produce, consume;
+pthread_mutex_t lock; //So only one thread can access buffer
+pthread_cond_t cond_con, cond_pro; //initializes the condition variables cond.
+//function to initilize threads 
+void* start()
+{
+
+	pthread_mutex_init(&lock, NULL);
+	pthread_cond_init(&cond_con, NULL);
+	pthread_cond_init(&cond_pro, NULL);
+
+
+
+}
+//The consumer function
+void* consumer(void *buff)
+{
+
+while(1){
+	pthread_mutex_lock(&lock);
+	
+		while(buffer_index == 0){
+			printf("Nothing in the buffer, bad producer. \n");
+			pthread_cond_wait(&cond_con, &lock);
+			
+
+			}
+
+				pthread_mutex_unlock(&lock);
+				printf("Concumers value %d, Buffer index %d\n",buffer[buffer_index-1].num_value, buffer_index-1); 
+				sleep(buffer[buffer_index - 1].wait_period);
+				pthread_mutex_lock(&lock);
+	buffer_index = buffer_index - 1;
+ 	pthread_cond_signal(&cond_pro);
+	pthread_mutex_unlock(&lock);
+	}
+
+
+}
+//Function to suspend  
+void* middle()
+{
+
+	pthread_join(consume, NULL);//suspends once thread terminates
+	pthread_join(produce, NULL);//suspends once thread terminates
+
+}
+
+//The producer function
+void* producer(void *buff)
+{
+	struct item_buffer producer_index;
+	int sleepProd = genrand_int32() % 5 + 3;
+		while(1){
+		sleep(sleepProd);
+		pthread_mutex_lock(&lock);
+		while (buffer_index == MAXBUFFER) {
+			printf("Waiting for consumer because the buffer is full \n");
+			pthread_cond_wait(&cond_pro, &lock);
+		}
+					producer_index.num_value = genrand_int32() %100;
+					producer_index.wait_period = genrand_int32() % 8 + 2;
+					buffer[buffer_index] = producer_index;
+					buffer_index = buffer_index + 1;
+					printf("Producers  value %d. Buffer index %d \n", buffer[buffer_index-1].num_value,buffer_index);
+			pthread_cond_signal(&cond_con);
+			pthread_mutex_unlock(&lock);			  
+}
+}
+
+//function that destroys everything 
+void* end()
+{
+	//needed to release variables from pthread_cond_init
+	pthread_mutex_destroy(&lock);//destroying onject referenced by mutex
+	pthread_cond_destroy(&cond_con);//Freeing by destroying condition.
+	pthread_cond_destroy(&cond_pro);//Freeing by destroying condition.
+}
+
+
+
+//The main functionfor the program.
+int main(int argc, char **argv)
+{
+
+init_genrand(time(NULL));
+
+start();
+
+pthread_create(&consume, NULL, consumer, NULL);
+pthread_create(&produce, NULL, producer, NULL);
+
+middle();
+
+end();
+
+
+return 0;
+}
+
+

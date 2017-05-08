@@ -1,0 +1,166 @@
+/*Author:Alex Arreguin
+Class: CS 444
+Date: 5/17/2016
+Description: Concurrency 4 Part 2: A barbershop consists of a waiting room with n chairs,
+and the barber room containing the barber chair. If there are no customers to be served,
+the barber goes to sleep. If a customer enters the barbershop and all chairs are occupied,
+then the customer leaves the shop. If the barber is busy, but chairs are available, then 
+the customer sits in one of the free chairs. If the barber is asleep,
+the customer wakes up the barber. Write a program to coordinate the barber and the customers.
+*/
+
+#include <stdio.h>
+#include <pthread.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <string.h>
+
+
+void barber(void *);
+void customer(void *);
+void get_hair_cut(void);
+void cut_hair(void);
+void leave(void);
+void add(void);
+
+
+pthread_t b_thread;
+pthread_mutex_t lockb;
+pthread_mutex_t locka;
+
+struct chair {
+
+	struct chair *n;
+};
+
+struct line {
+
+	int num_cust;
+	int chairs;
+	struct chair *curr;
+	struct chair *n;
+};
+
+struct line seats;
+
+
+void add(void)
+{
+	struct chair new;
+	struct chair *ref = seats.curr;
+
+	if(seats.num_cust >= seats.chairs)
+	{
+		return;
+	}
+	new.n = NULL;
+	while(seats.n != NULL)
+	{
+		ref = ref->n;  
+	}
+	ref->n = &new;
+	seats.num_cust++;
+
+}
+
+void leave(void)
+{
+	struct chair *ref = seats.curr;
+
+	seats.num_cust--;
+	seats.curr = seats.n;
+	if(seats.n != NULL)
+	{
+		seats.n = seats.curr->n;
+	}
+
+	ref = NULL;
+
+}
+
+void barber(void *queue)
+{
+	int i;
+	int temp;
+
+	for(;;)
+	{
+		i = 0;
+		temp = seats.num_cust;
+		while(seats.num_cust == 0)
+		{
+			printf("Nobody Here, Sleeping.\n");
+			sleep(5);
+		}
+
+		for(i = 0; i < temp; i++)
+		{
+			cut_hair();
+		}
+	}
+}
+
+void customer(void *queue)
+{
+	if(seats.num_cust >= seats.chairs)
+	{
+		printf("Leaving, To Full\n");
+		return;
+	}
+
+	pthread_mutex_lock(&locka);
+	add();
+	pthread_mutex_unlock(&locka);
+	printf("Waiting\n");
+	pthread_mutex_lock(&lockb);
+	get_hair_cut();
+	leave();
+	pthread_mutex_unlock(&lockb);
+}
+
+
+void cut_hair(void)
+{
+
+	printf("Cutting Hair\n");
+	sleep(10);
+
+}
+
+void get_hair_cut(void)
+{
+	printf("Getting Hair Cut\n");
+	sleep(10);
+	printf("Done \n");
+
+}
+
+int main(int argc, char **argv) {
+
+
+	void *barb = barber;
+	void *custo = customer;
+	struct chair one;
+	int i;
+
+	one.n = NULL;
+	seats.curr = &one;
+
+	pthread_t cust[5];
+	pthread_mutex_init(&lockb, NULL);
+	pthread_mutex_init(&locka, NULL);
+
+	seats.chairs = 3;
+	seats.num_cust = 0;
+
+	pthread_create(&b_thread, NULL, barb, NULL);
+	sleep(5);
+
+	for(i=0; i < 5; ++i){
+		pthread_create(&cust[i], NULL, custo, NULL);
+	}
+
+	for(;;){
+	}
+
+}

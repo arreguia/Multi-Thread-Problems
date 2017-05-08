@@ -1,0 +1,73 @@
+/*Author:Alex Arreguin
+Class: CS 444
+Date: 5/17/2016
+Description: Concurrency 3 Part 1: A shareable resource with the following characteristics:
+As long as there are fewer than three processes using the resource, new processes can start using it right away.
+Once there are three processes using the resource, all three must leave before any new processes can begin using it.
+*/
+
+#include <stdio.h>
+#include <pthread.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <string.h>
+#include <semaphore.h>
+
+
+void process(void *);
+
+struct buf {
+    sem_t mutex;    
+};
+
+struct buf source;
+int pross;
+
+void process (void *buf)
+{
+	int num = 0;
+	if(pross > 0)
+	{
+		num = 1;
+	}
+	while(num == 0)
+	{
+		printf("Waiting\n");
+		sleep(5);
+		if(pross == 3)
+		{   
+		
+			num = 1;
+			printf("New Processes\n");
+		}
+		
+	}
+	sem_wait(&source.mutex);
+	pross -= 1;
+	printf("Processing\n");
+	sleep(5);
+	printf("Done processing\n");
+	sem_post(&source.mutex);
+	pross+=1;
+	printf("Full: New Process have to Waiting\n");
+	//printf("Process Done\n");
+
+}
+
+int main(int argc, char **argv) {
+	
+	int i;
+    void *resource = process;
+    sem_init(&source.mutex, 0, 3);
+    pross = 3;   
+
+	pthread_t processes[4];
+	
+	for(i=0; i < 5; ++i){
+    pthread_create(&processes[i], NULL, resource  , NULL);
+	}
+
+    for(;;){
+		
+	}
+}
